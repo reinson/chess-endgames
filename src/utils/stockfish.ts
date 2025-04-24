@@ -37,7 +37,8 @@ function initializeStockfish(): Promise<void> {
       }
 
       // Create a new worker
-      const worker = new Worker('/stockfish/stockfish.js', { type: 'module' });
+      const workerPath = `${import.meta.env.BASE_URL}stockfish/stockfish.js`;
+      const worker = new Worker(workerPath, { type: 'module' });
       stockfishInstance = worker as unknown as StockfishWorker;
       
       stockfishInstance.onmessage = (event: { data: string }) => {
@@ -192,7 +193,7 @@ export async function evaluatePosition(fen: string, movetime: number = 2000): Pr
     stockfishInstance!.postMessage(`go movetime ${movetime}`);
 
     // Set a timeout slightly longer than the movetime
-    timeoutId = setTimeout(() => {
+    timeoutId = window.setTimeout(() => {
       cleanup();
       reject(new Error('Evaluation timed out'));
     }, movetime + 100);

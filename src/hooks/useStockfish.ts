@@ -35,7 +35,12 @@ export function useStockfish() {
   // Initialize worker
   useEffect(() => {
     console.log("Initializing worker...");
-    const worker = new Worker('/stockfish/stockfish-nnue-16-single.js');
+    // Log the base URL being used
+    console.log("BASE_URL for worker:", import.meta.env.BASE_URL);
+    // Construct the path relative to the base URL
+    const workerPath = `${import.meta.env.BASE_URL}stockfish/stockfish-nnue-16-single.js`;
+    console.log("Constructed worker path:", workerPath);
+    const worker = new Worker(workerPath, { type: 'module' }); // Ensure type: module if needed
     workerRef.current = worker;
     isEngineBusy.current = false;
     currentEvalRef.current = null;

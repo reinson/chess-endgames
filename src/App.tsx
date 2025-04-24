@@ -51,6 +51,7 @@ function createFenFromPieces(pieces: { square: Square; piece: { type: PieceSymbo
 }
 
 function App() {
+  // Revert to standard starting FEN
   const [currentFen, setCurrentFen] = useState<string>('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1')
   const [kingEvaluationResults, setKingEvaluationResults] = useState<Record<string, string>>({})
   const [isEvaluatingKings, setIsEvaluatingKings] = useState<boolean>(false)
@@ -195,10 +196,10 @@ function App() {
   };
 
   return (
-    <Router>
+    <Router basename={import.meta.env.BASE_URL}>
       <div className="app">
         <nav style={{ marginBottom: '20px' }}>
-          <Link to="/" style={{ marginRight: '20px' }}>Chess Board Setup</Link>
+          <Link to="/" style={{ marginRight: '20px' }}>King Positions</Link>
           <Link to="/engine" style={{ marginRight: '20px' }}>Engine Test</Link>
           <Link to="/play">Play vs Computer</Link>
         </nav>
@@ -208,7 +209,7 @@ function App() {
           <Route path="/engine" element={<EngineTest />} />
           <Route path="/" element={
             <>
-              <h1>Chess Position Setup & King Safety</h1>
+              <h1>Where should my king be?</h1>
               <ChessBoard
                 onPositionChange={handlePositionChange}
                 kingEvaluationResults={kingEvaluationResults}

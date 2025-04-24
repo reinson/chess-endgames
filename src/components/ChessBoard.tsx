@@ -45,36 +45,35 @@ export function ChessBoard({
     }
   }, [onPositionChange]);
 
-  const onSquareClick = useCallback((square: string) => {
+  const onSquareClick = useCallback((square: Square) => {
     if (!selectedPiece) {
-      const piece = game.get(square as Square);
+      const piece = game.get(square);
       if (piece) {
         setSelectedPiece(piece.color === 'w' ? piece.type.toUpperCase() : piece.type.toLowerCase());
-        game.remove(square as Square);
+        game.remove(square);
         handlePositionChange(game.fen());
       }
       return;
     }
-    const existingPiece = game.get(square as Square);
+    const existingPiece = game.get(square);
     if (existingPiece) {
-        console.warn(`Square ${square} is already occupied by ${existingPiece.color}${existingPiece.type}. Cannot place ${selectedPiece}.`);
+        console.warn(`Square ${square} is already occupied. Cannot place ${selectedPiece}.`);
         setSelectedPiece(null);
         return;
     }
     try {
       const pieceType = selectedPiece;
-      game.put({ type: pieceType.toLowerCase() as PieceSymbol, color: pieceType === pieceType.toUpperCase() ? 'w' : 'b' }, square as Square);
+      game.put({ type: pieceType.toLowerCase() as PieceSymbol, color: pieceType === pieceType.toUpperCase() ? 'w' : 'b' }, square);
       handlePositionChange(game.fen());
-      setSelectedPiece(null);
     } catch (error) {
       console.error('Error placing piece:', error);
       setSelectedPiece(null);
     }
   }, [game, selectedPiece, handlePositionChange]);
 
-  const onSquareRightClick = useCallback((square: string) => {
+  const onSquareRightClick = useCallback((square: Square) => {
     try {
-      game.remove(square as Square);
+      game.remove(square);
       handlePositionChange(game.fen());
     } catch (error) {
       console.error('Error removing piece:', error);
