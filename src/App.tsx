@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { ChessBoard } from './components/ChessBoard'
 import { EngineTest } from './components/EngineTest'
 import { PlayComputer } from './components/PlayComputer'
@@ -51,6 +51,7 @@ function createFenFromPieces(pieces: { square: Square; piece: { type: PieceSymbo
 }
 
 function App() {
+  const cancelEvaluationRef = useRef(false);
   // Revert to standard starting FEN
   const [currentFen, setCurrentFen] = useState<string>('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1')
   const [kingEvaluationResults, setKingEvaluationResults] = useState<Record<string, string>>({})
@@ -72,6 +73,12 @@ function App() {
   }, [engineReady]); // Just log readiness state change
 
   const handlePositionChange = (fen: string) => {
+    // Cancel any ongoing evaluation when board is cleared
+    const emptyFen = '8/8/8/8/8/8/8/8 w - - 0 1';
+    if (fen === emptyFen) {
+      cancelEvaluationRef.current = true;
+      setIsEvaluatingKings(false);
+    }
     setCurrentFen(fen)
     setKingEvaluationResults({})
     // Determine orientation based on whose turn it is
@@ -80,29 +87,8 @@ function App() {
   }
 
   const handleEvaluateKingPositions = async () => {
-    const fenParts = currentFen.split(' ');
-    const piecePlacement = fenParts[0];
-    const whiteKings = (piecePlacement.match(/K/g) || []).length;
-    const blackKings = (piecePlacement.match(/k/g) || []).length;
-
-    if (whiteKings + blackKings !== 1) {
-        alert("King evaluation requires exactly one king (either white OR black) to be present on the board.");
-        console.error("Evaluation requires exactly one king on the board. Found:", { whiteKings, blackKings });
-        return;
-    }
-
-    // Check engine readiness and if already evaluating
-    if (!engineReady || isEvaluatingKings) {
-      console.warn(`Cannot evaluate kings: Engine ready: ${engineReady}, Already evaluating: ${isEvaluatingKings}`);
-      return;
-    }
-
-    // Ensure evaluateFen is available (defensive check)
-    if (!evaluateFen) {
-        console.error("Cannot evaluate kings: evaluateFen function is not available from the hook.");
-        return;
-    }
-
+    // Reset cancellation flag
+    cancelEvaluationRef.current = false;
     setIsEvaluatingKings(true);
     setKingEvaluationResults({}); // Clear previous results
 
@@ -116,9 +102,9 @@ function App() {
       let rank = 7;
       let existingKingSquare: Square | null = null;
       let existingKingColor: 'w' | 'b' | null = null;
-      const turn = fenParts[1] as 'w' | 'b' || 'w'; // Get turn from FEN
+      const turn = currentFen.split(' ')[1] as 'w' | 'b' || 'w'; // Get turn from FEN
 
-      for (const char of piecePlacement) {
+      for (const char of currentFen.split(' ')[0]) {
         if (char === '/') {
           rank--;
           file = 0;
@@ -154,7 +140,9 @@ function App() {
 
       // --- Simplified Evaluation loop --- 
       for (const square of allSquares) {
-          if (game.get(square) || square === existingKingSquare) continue; // Skip occupied squares or the existing king's square
+          // Stop if clear board was clicked
+          if (cancelEvaluationRef.current) break;
+          if (game.get(square) || square === existingKingSquare) continue;
 
           // Prevent placing kings adjacent to each other
           const squareFile = square.charCodeAt(0);
@@ -174,6 +162,7 @@ function App() {
           // --- Core change: Use the hook's promise-based evaluation --- 
           try {
               const evaluation = await evaluateFen(tempFen, 1000); // Wait for the hook to finish
+              if (cancelEvaluationRef.current) { break; }
               const emoji = getEvaluationEmoji(evaluation);
               console.log(`  Result for ${square}:`, evaluation, `-> Emoji: ${emoji}`);
               setKingEvaluationResults(prev => ({ ...prev, [square]: emoji }));
@@ -191,7 +180,8 @@ function App() {
       console.error("An unexpected error occurred during king evaluation:", error);
     } finally {
       setIsEvaluatingKings(false); // Ensure this always runs
-      // REMOVED: setThinking(false)
+      // Clear cancellation flag after evaluation ended
+      cancelEvaluationRef.current = false;
     }
   };
 
