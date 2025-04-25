@@ -1,1 +1,102 @@
 /* Add styles for ChessBoard component and evaluation overlays here */ 
+
+.piece-buttons {
+  display: grid;
+  grid-template-columns: repeat(2, 56px);
+  gap: 12px;
+  padding: 16px;
+  background: #f8f9fa;
+  border-radius: 12px;
+}
+
+.piece-button {
+  width: 56px;
+  height: 56px;
+  background: white;
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  cursor: pointer;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+  user-select: none;
+}
+
+.piece-button:hover {
+  border-color: #adb5bd;
+}
+
+.piece-button.selected {
+  background-color: #4c6ef5;
+  border-color: #4c6ef5;
+  color: white;
+}
+
+/* Clear Board button spans two columns under the pieces */
+.piece-buttons > button {
+  grid-column: 1 / -1;
+  width: 100%;
+  padding: 8px 0;
+  border: 1px solid #6c757d; /* gray outline */
+  border-radius: 4px;
+  background: transparent;
+  color: #6c757d;
+  font-size: 16px;
+  cursor: pointer;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.piece-buttons > button:hover {
+  background-color: rgba(108, 117, 125, 0.1);
+  border-color: #5a6268;
+  color: #5a6268;
+}
+
+/* Remove focus outline on Clear Board button */
+.piece-buttons > button:focus {
+  outline: none;
+  box-shadow: none;
+}
+
+/* Styles for Evaluate King Positions button */
+.evaluate-button {
+  padding: 12px 24px;         /* larger clickable area */
+  background-color: #28a745;  /* a nicer green */
+  color: white;
+  font-weight: bold;
+  font-size: 16px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  transition: background-color 0.2s ease, transform 0.1s ease;
+}
+.evaluate-button:hover:not(:disabled) {
+  background-color: #218838;
+  transform: translateY(-1px);
+}
+.evaluate-button:disabled {
+  background-color: #6c757d;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* Override clear-board rule for evaluate-button to restore green style */
+.piece-buttons > .evaluate-button {
+  background-color: #28a745 !important;
+  color: white !important;
+  border: none !important;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+.piece-buttons > .evaluate-button:hover:not(:disabled) {
+  background-color: #218838 !important;
+}
+
+/* Override evaluate-button disabled state to gray */
+.piece-buttons > .evaluate-button:disabled {
+  background-color: #6c757d !important;
+  color: white !important;
+  box-shadow: none !important;
+} 

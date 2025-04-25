@@ -118,56 +118,58 @@ export function ChessBoard({
   return (
     <div className="chess-board-container">
       <div className="board-and-controls">
-        <div style={{ position: 'relative', width: BOARD_WIDTH, height: BOARD_WIDTH }}>
-          <Chessboard
-            position={position}
-            onSquareClick={onSquareClick}
-            onSquareRightClick={onSquareRightClick}
-            onPieceDrop={onPieceDrop}
-            boardWidth={BOARD_WIDTH}
-          />
-          <div
-            className="evaluation-overlays"
-            style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                width: '100%',
-                height: '100%',
-                pointerEvents: 'none',
-            }}
-          >
-            {Object.entries(kingEvaluationResults)
-                .filter(([/* square */, emoji]) => emoji !== '')
-                .map(([square, emoji]) => {
-                const fileIndex = square.charCodeAt(0) - 'a'.charCodeAt(0);
-                const rankIndex = 8 - parseInt(square[1]);
-                const top = rankIndex * SQUARE_SIZE;
-                const left = fileIndex * SQUARE_SIZE;
+        <div style={{ display: 'flex', flexDirection: 'column', width: BOARD_WIDTH }}>
+          <div style={{ position: 'relative', width: BOARD_WIDTH, height: BOARD_WIDTH }}>
+            <Chessboard
+              position={position}
+              onSquareClick={onSquareClick}
+              onSquareRightClick={onSquareRightClick}
+              onPieceDrop={onPieceDrop}
+              boardWidth={BOARD_WIDTH}
+            />
+            <div
+              className="evaluation-overlays"
+              style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  height: '100%',
+                  pointerEvents: 'none',
+              }}
+            >
+              {Object.entries(kingEvaluationResults)
+                  .filter(([/* square */, emoji]) => emoji !== '')
+                  .map(([square, emoji]) => {
+                  const fileIndex = square.charCodeAt(0) - 'a'.charCodeAt(0);
+                  const rankIndex = 8 - parseInt(square[1]);
+                  const top = rankIndex * SQUARE_SIZE;
+                  const left = fileIndex * SQUARE_SIZE;
 
-                return (
-                   <div
-                      key={square}
-                      className="evaluation-emoji"
-                      style={{
-                         position: 'absolute',
-                         top: `${top}px`,
-                         left: `${left}px`,
-                         width: `${SQUARE_SIZE}px`,
-                         height: `${SQUARE_SIZE}px`,
-                         display: 'flex',
-                         alignItems: 'center',
-                         justifyContent: 'center',
-                         fontSize: '24px',
-                         fontWeight: '500',
-                         color: 'rgba(0, 0, 0, 0.75)',
-                         zIndex: 2,
-                      }}
-                   >
-                      {emoji}
-                   </div>
-                );
-            })}
+                  return (
+                     <div
+                        key={square}
+                        className="evaluation-emoji"
+                        style={{
+                           position: 'absolute',
+                           top: `${top}px`,
+                           left: `${left}px`,
+                           width: `${SQUARE_SIZE}px`,
+                           height: `${SQUARE_SIZE}px`,
+                           display: 'flex',
+                           alignItems: 'center',
+                           justifyContent: 'center',
+                           fontSize: '24px',
+                           fontWeight: '500',
+                           color: 'rgba(0, 0, 0, 0.75)',
+                           zIndex: 2,
+                        }}
+                     >
+                        {emoji}
+                     </div>
+                  );
+              })}
+            </div>
           </div>
         </div>
         <div className="piece-buttons">
@@ -180,14 +182,18 @@ export function ChessBoard({
               {symbol}
             </div>
           ))}
-        </div>
-      </div>
-      <div className="controls">
-        <div style={{ width: '100%', marginBottom: '10px' }}>
-          <button onClick={resetBoard} style={{ marginRight: '10px' }}>Reset Board</button>
-          <button onClick={clearBoard} style={{ marginRight: '10px' }}>Clear Board</button>
-          <button onClick={onEvaluateKingPositions} disabled={isEvaluatingKings}>
-            {isEvaluatingKings ? 'Evaluating Kings...' : 'Evaluate King Positions'}
+          <button
+            onClick={clearBoard}
+            style={{ marginTop: '10px' }}
+          >
+            Clear Board
+          </button>
+          <button
+            className="evaluate-button"
+            onClick={onEvaluateKingPositions}
+            disabled={isEvaluatingKings}
+          >
+            {isEvaluatingKings ? 'Evaluating' : 'Evaluate'}
           </button>
         </div>
       </div>

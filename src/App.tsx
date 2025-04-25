@@ -198,9 +198,9 @@ function App() {
   return (
     <Router basename={import.meta.env.BASE_URL}>
       <div className="app">
-        <nav style={{ marginBottom: '20px' }}>
-          <Link to="/" style={{ marginRight: '20px' }}>King Positions</Link>
-          <Link to="/engine" style={{ marginRight: '20px' }}>Engine Test</Link>
+        <nav style={{ marginBottom: '10px' }}>
+          <Link to="/" style={{ marginRight: '10px' }}>King Positions</Link>
+          <Link to="/engine" style={{ marginRight: '10px' }}>Engine Test</Link>
           <Link to="/play">Play vs Computer</Link>
         </nav>
 
@@ -209,7 +209,6 @@ function App() {
           <Route path="/engine" element={<EngineTest />} />
           <Route path="/" element={
             <>
-              <h1>Where should my king be?</h1>
               <ChessBoard
                 onPositionChange={handlePositionChange}
                 kingEvaluationResults={kingEvaluationResults}
