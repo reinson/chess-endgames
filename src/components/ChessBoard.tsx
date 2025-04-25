@@ -31,8 +31,16 @@ export function ChessBoard({
   isEvaluatingKings,
   onEvaluateKingPositions
 }: ChessBoardProps) {
-  const [game, setGame] = useState(new Chess());
-  const [position, setPosition] = useState(game.fen());
+  const [game, setGame] = useState(() => {
+    const g = new Chess();
+    g.clear();
+    return g;
+  });
+  const [position, setPosition] = useState(() => {
+    const g = new Chess();
+    g.clear();
+    return g.fen();
+  });
   const [selectedPiece, setSelectedPiece] = useState<string | null>(null);
 
   const BOARD_WIDTH = 500;
