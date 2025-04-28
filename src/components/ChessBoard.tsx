@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { Chessboard } from 'react-chessboard';
 import { Chess, PieceSymbol, Square } from 'chess.js';
 import './ChessBoard.css';
@@ -34,6 +34,9 @@ const PIECES = [
   { symbol: '♟', type: 'p' },
 ] as const;
 
+// --- Animation Delay --- 
+const HISTORY_LOAD_ANIMATION_DELAY_MS = 300; // Adjust as needed (ms)
+
 export function ChessBoard({
   onPositionChange,
   // Removed: kingEvaluationResults,
@@ -59,6 +62,10 @@ export function ChessBoard({
 
   // --- Active Evaluation State Change: Holds detailed results per square --- 
   const [activeEvaluation, setActiveEvaluation] = useState<Record<string, EvaluationResult | null>>({});
+  // --- State for pending evaluation after history click ---
+  const [pendingEvaluation, setPendingEvaluation] = useState<Record<string, EvaluationResult | null> | null>(null);
+  // Ref to store the timeout ID for cleanup
+  const evaluationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // game, position, selectedPiece state remain the same
   const [game, setGame] = useState(() => {
@@ -128,6 +135,33 @@ export function ChessBoard({
     });
   }, [kingDetailedEvaluations, position]); // Depends on detailed results and position
 
+  // --- useEffect for applying pending evaluation after animation delay ---
+  useEffect(() => {
+    // Clear any existing timeout when position changes
+    if (evaluationTimeoutRef.current) {
+      clearTimeout(evaluationTimeoutRef.current);
+      evaluationTimeoutRef.current = null;
+    }
+
+    if (pendingEvaluation) {
+      console.log('[ChessBoard Effect - Apply Pending Eval] Position changed, pending eval found. Setting timeout.');
+      evaluationTimeoutRef.current = setTimeout(() => {
+        console.log('[ChessBoard Effect - Apply Pending Eval] Timeout finished. Applying pending evaluation.');
+        setActiveEvaluation(pendingEvaluation);
+        setPendingEvaluation(null); // Clear the pending state
+        evaluationTimeoutRef.current = null;
+      }, HISTORY_LOAD_ANIMATION_DELAY_MS);
+    }
+    
+    // Cleanup function to clear timeout if component unmounts or position changes again
+    return () => {
+        if (evaluationTimeoutRef.current) {
+            clearTimeout(evaluationTimeoutRef.current);
+            evaluationTimeoutRef.current = null;
+        }
+    };
+  }, [position, pendingEvaluation]); // Depend on position and pendingEvaluation
+
   // --- ADDED: Delete History Item Handler ---
   const handleDeleteHistoryItem = useCallback((fenToDelete: string, event: React.MouseEvent) => {
     event.stopPropagation(); // Prevent handleHistoryClick from firing
@@ -141,26 +175,28 @@ export function ChessBoard({
     });
   }, []); // No dependencies needed as it only uses setHistoryStorage
 
-  // --- History Click Change: Load from the new storage structure --- 
+  // --- Modified handleHistoryClick ---
   const handleHistoryClick = useCallback(
     (fen: string) => {
        const evalMap = historyStorage[fen];
        console.log('[ChessBoard Callback] handleHistoryClick:', { fen, evalMap });
-       if (!evalMap) {
-         console.warn('Evaluation data not found in historyStorage for FEN:', fen);
-         // If evalMap is missing, we should probably still show the board
-         // but with no evaluations.
+       
+       // 1. Clear current emojis immediately
+       setActiveEvaluation({}); 
+       // 2. Clear any pending evaluation from a previous rapid click
+       setPendingEvaluation(null);
+       if (evaluationTimeoutRef.current) {
+           clearTimeout(evaluationTimeoutRef.current);
+           evaluationTimeoutRef.current = null;
        }
 
-       // --- CHANGE: Bypass game.load() --- 
-       // Directly set the position state for react-chessboard to render the FEN
+       // 3. Store the evaluation to be applied after delay
+       setPendingEvaluation(evalMap || {}); // Use empty if not found
+       
+       // 4. Trigger board position change (starts animation)
        setPosition(fen);
-       // Set the active evaluation map (use empty object if evalMap wasn't found)
-       setActiveEvaluation(evalMap || {});
-
-       // --- Manually update internal game state --- 
-       // This allows interactions like adding/removing pieces after loading history,
-       // even if the loaded FEN was initially incomplete.
+       
+       // 5. Manually update internal game state (as before)
        const newGame = new Chess();
        newGame.clear();
        const fenParts = fen.split(' ');
@@ -169,47 +205,39 @@ export function ChessBoard({
        let rank = 7;
        try {
            for (const char of boardFen) {
-               if (char === '/') {
-                   rank--;
-                   file = 0;
-               } else if (/\d/.test(char)) {
-                   file += parseInt(char);
-               } else {
-                   const square = `${String.fromCharCode(97 + file)}${rank + 1}` as Square;
-                   const color = (char === char.toUpperCase()) ? 'w' : 'b';
-                   const type = char.toLowerCase() as PieceSymbol;
-                   // Use game.put which is generally more permissive than load
-                   newGame.put({ type, color }, square);
-                   file++;
-               }
-           }
-           // Note: We are intentionally *not* setting turn, castling, etc., 
-           // from the old FEN parts here, as the primary goal is to 
-           // restore the piece layout for viewing evaluations.
-           // The game state might become slightly inconsistent regarding
-           // turn/castling if pieces are moved *after* loading history.
-           
-           setGame(newGame); // Update the internal game state
-           console.log("[ChessBoard Callback] Manually updated game state from FEN.");
-
+                if (char === '/') { rank--; file = 0; }
+                else if (/\d/.test(char)) { file += parseInt(char); }
+                else {
+                    const square = `${String.fromCharCode(97 + file)}${rank + 1}` as Square;
+                    const color = (char === char.toUpperCase()) ? 'w' : 'b';
+                    const type = char.toLowerCase() as PieceSymbol;
+                    newGame.put({ type, color }, square);
+                    file++;
+                }
+            }
+           setGame(newGame); 
+           console.log("[CB Callback] Manually updated game state from FEN.");
        } catch (manualLoadError) {
-            console.error("Error manually placing pieces from FEN in handleHistoryClick:", manualLoadError, "FEN:", fen);
-           // If manual placement fails, fall back to a cleared game state
-           const errorGame = new Chess(); errorGame.clear();
-           setGame(errorGame);
+            console.error("Error manually placing pieces:", manualLoadError, "FEN:", fen);
+           const errorGame = new Chess(); errorGame.clear(); setGame(errorGame);
        }
 
-       // Inform the parent component (App.tsx) that the position has changed
+       // 6. Inform parent
        onPositionChange?.(fen);
 
     },
-    [onPositionChange, historyStorage] // Dependency includes historyStorage now
+    [onPositionChange, historyStorage] // Keep dependencies
   );
 
   // --- Other Callbacks (onSquareClick, etc.) --- 
   // These generally remain the same, ensure handlePositionChange is called correctly
   const onSquareClick = useCallback((square: Square) => {
       console.log('[CB SquareClick]', square, 'Sel:', selectedPiece);
+      // --- Clear emojis on any click that modifies the board --- 
+      setActiveEvaluation({}); 
+      setPendingEvaluation(null); // Also clear pending if any
+      if (evaluationTimeoutRef.current) { clearTimeout(evaluationTimeoutRef.current); evaluationTimeoutRef.current = null; }
+
       if (!selectedPiece) {
           const piece = game.get(square);
           if (piece) {
@@ -241,6 +269,11 @@ export function ChessBoard({
 
   const onSquareRightClick = useCallback((square: Square) => {
       console.log('[CB RightClick]', square);
+      // --- Clear emojis on right-click remove --- 
+      setActiveEvaluation({});
+      setPendingEvaluation(null); // Also clear pending if any
+      if (evaluationTimeoutRef.current) { clearTimeout(evaluationTimeoutRef.current); evaluationTimeoutRef.current = null; }
+
       try {
           const removeResult = game.remove(square);
           if (removeResult) { handlePositionChange(game.fen()); }
@@ -250,6 +283,11 @@ export function ChessBoard({
 
   const onPieceDrop = useCallback((sourceSquare: Square, targetSquare: Square) => {
       console.log('[CB Drop]', sourceSquare, '->', targetSquare);
+      // --- Clear emojis on drop --- 
+      setActiveEvaluation({});
+      setPendingEvaluation(null); // Also clear pending if any
+      if (evaluationTimeoutRef.current) { clearTimeout(evaluationTimeoutRef.current); evaluationTimeoutRef.current = null; }
+
       try {
           const piece = game.get(sourceSquare); if (!piece) return false;
           game.remove(sourceSquare);
