@@ -99,4 +99,38 @@
   background-color: #6c757d !important;
   color: white !important;
   box-shadow: none !important;
+}
+
+/* Styles for FEN History List */
+.fen-history li {
+  position: relative; /* Needed for absolute positioning of the delete button */
+  padding-right: 20px; /* Make space for the delete button */
+  cursor: pointer;
+  margin-bottom: 8px;
+  word-break: break-all;
+  font-size: 11px;
+}
+
+.fen-history .delete-btn {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 20px; /* Width of the button area */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  color: #dc3545; /* Red color for delete */
+  cursor: pointer;
+  opacity: 0; /* Hidden by default */
+  transition: opacity 0.2s ease-in-out;
+}
+
+.fen-history li:hover .delete-btn {
+  opacity: 1; /* Visible on hover */
+}
+
+.fen-history .delete-btn:hover {
+  color: #a0202e; /* Darker red on hover */
 } 

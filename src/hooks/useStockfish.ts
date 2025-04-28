@@ -4,6 +4,7 @@ export interface EvaluationResult {
   score?: number; // Centipawns
   mate?: number;  // Mate in X moves
   depth?: number;
+  bestMove?: string; // Add best move field
 }
 
 // Helper (can be moved out if needed)
@@ -61,15 +62,23 @@ export function useStockfish() {
           const currentDepth = depthMatch ? parseInt(depthMatch[1]) : undefined;
           if (message.includes('score cp')) {
             const scoreMatch = message.match(/score cp (-?\d+)/);
-            if (scoreMatch) currentEvalRef.current = { score: parseInt(scoreMatch[1]), depth: currentDepth };
+            if (scoreMatch) currentEvalRef.current = { ...currentEvalRef.current, score: parseInt(scoreMatch[1]), mate: undefined, depth: currentDepth };
           } else if (message.includes('score mate')) {
             const mateMatch = message.match(/score mate (-?\d+)/);
-            if (mateMatch) currentEvalRef.current = { mate: parseInt(mateMatch[1]), depth: currentDepth };
+            if (mateMatch) currentEvalRef.current = { ...currentEvalRef.current, mate: parseInt(mateMatch[1]), score: undefined, depth: currentDepth };
           }
         }
         // Handle completion
         else if (message.startsWith('bestmove')) {
           if(timeoutRef.current) clearTimeout(timeoutRef.current);
+          const parts = message.split(' ');
+          const bestMove = parts[1] && parts[1] !== '(none)' ? parts[1] : undefined;
+          if (currentEvalRef.current) {
+             currentEvalRef.current.bestMove = bestMove;
+          } else {
+             currentEvalRef.current = { bestMove: bestMove };
+          }
+
           if (currentEvalPromiseResolve.current) {
              console.log("useStockfish: Bestmove received, resolving promise with:", currentEvalRef.current);
              currentEvalPromiseResolve.current(currentEvalRef.current);

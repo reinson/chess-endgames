@@ -6,14 +6,13 @@ import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom'
 import './App.css'
 import { useStockfish, EvaluationResult } from './hooks/useStockfish.ts'
 import { Chess, PieceSymbol, Square } from 'chess.js'
-import { Chessboard } from 'react-chessboard'
 
 // Helper function for delays
 const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 // Helper function to get evaluation emoji
-const getEvaluationEmoji = (evaluation: EvaluationResult | null): string => {
-  if (!evaluation) return ''; // Nothing if not evaluated
+const getEvaluationEmoji = (evaluation: EvaluationResult | null | undefined): string => {
+  if (!evaluation) return ''; // Nothing if not evaluated or null/undefined
 
   // White winning (mate or strong advantage)
   if ((evaluation.mate && evaluation.mate > 0) || (evaluation.score !== undefined && evaluation.score > 200)) {
@@ -30,7 +29,7 @@ const getEvaluationEmoji = (evaluation: EvaluationResult | null): string => {
     return '½';
   }
 
-  // All other cases (slight advantage, unknown score without mate, evaluating) return empty string
+  // All other cases return empty string
   return '';
 };
 
@@ -54,7 +53,7 @@ function App() {
   const cancelEvaluationRef = useRef(false);
   // Revert to standard starting FEN
   const [currentFen, setCurrentFen] = useState<string>('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1')
-  const [kingEvaluationResults, setKingEvaluationResults] = useState<Record<string, string>>({})
+  const [kingEvaluationResults, setKingEvaluationResults] = useState<Record<string, EvaluationResult | null>>({})
   const [isEvaluatingKings, setIsEvaluatingKings] = useState<boolean>(false)
   const [orientation, setOrientation] = useState<'white' | 'black'>('white')
 
@@ -73,24 +72,26 @@ function App() {
   }, [engineReady]); // Just log readiness state change
 
   const handlePositionChange = (fen: string) => {
-    // Cancel any ongoing evaluation when board is cleared
-    const emptyFen = '8/8/8/8/8/8/8/8 w - - 0 1';
-    if (fen === emptyFen) {
+    if (fen !== currentFen) {
+      console.log("[App] Position changed, clearing evaluations.");
       cancelEvaluationRef.current = true;
       setIsEvaluatingKings(false);
+      setKingEvaluationResults({}) // Clear detailed results
+      setCurrentFen(fen)
+      const turn = fen.split(' ')[1];
+      setOrientation(turn === 'w' ? 'white' : 'black');
+    } else {
+      setCurrentFen(fen);
     }
-    setCurrentFen(fen)
-    setKingEvaluationResults({})
-    // Determine orientation based on whose turn it is
-    const turn = fen.split(' ')[1];
-    setOrientation(turn === 'w' ? 'white' : 'black');
   }
 
   const handleEvaluateKingPositions = async () => {
-    // Reset cancellation flag
     cancelEvaluationRef.current = false;
     setIsEvaluatingKings(true);
-    setKingEvaluationResults({}); // Clear previous results
+    // --- Do NOT clear results here - let handlePositionChange do it --- 
+    // setKingEvaluationResults({}); // REMOVED
+
+    const evaluationForThisFen: Record<string, EvaluationResult | null> = {}; // Collect results locally
 
     try {
       console.log("Starting king evaluation for FEN:", currentFen);
@@ -163,18 +164,22 @@ function App() {
           try {
               const evaluation = await evaluateFen(tempFen, 1000); // Wait for the hook to finish
               if (cancelEvaluationRef.current) { break; }
-              const emoji = getEvaluationEmoji(evaluation);
-              console.log(`  Result for ${square}:`, evaluation, `-> Emoji: ${emoji}`);
-              setKingEvaluationResults(prev => ({ ...prev, [square]: emoji }));
+              console.log(`  Result for ${square}:`, evaluation);
+              // Update state incrementally with the detailed result
+              setKingEvaluationResults(prev => ({ ...prev, [square]: evaluation })); 
+              evaluationForThisFen[square] = evaluation; // Also collect locally (optional, but good practice)
           } catch (evalError) {
               console.error(`  Error evaluating FEN ${tempFen} for square ${square}:`, evalError);
-              setKingEvaluationResults(prev => ({ ...prev, [square]: '❌' })); // Mark error on the board
+              // Store null or an error indicator in the state
+              setKingEvaluationResults(prev => ({ ...prev, [square]: null })); // Store null on error
+              evaluationForThisFen[square] = null;
           }
           // REMOVED: Manual wait loops, setThinking, reading appCurrentEvalRef
 
       } // --- End evaluation loop ---
 
       console.log("Finished all king evaluations.");
+      // Final state update is handled incrementally within the loop
 
     } catch (error) {
       console.error("An unexpected error occurred during king evaluation:", error);
@@ -201,7 +206,8 @@ function App() {
             <>
               <ChessBoard
                 onPositionChange={handlePositionChange}
-                kingEvaluationResults={kingEvaluationResults}
+                kingDetailedEvaluations={kingEvaluationResults}
+                getEvaluationEmoji={getEvaluationEmoji}
                 isEvaluatingKings={isEvaluatingKings}
                 onEvaluateKingPositions={handleEvaluateKingPositions}
               />
