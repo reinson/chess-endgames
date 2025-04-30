@@ -51,10 +51,10 @@ function createFenFromPieces(pieces: { square: Square; piece: { type: PieceSymbo
 
 function App() {
   const cancelEvaluationRef = useRef(false);
-  // Revert to standard starting FEN
   const [currentFen, setCurrentFen] = useState<string>('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1')
   const [kingEvaluationResults, setKingEvaluationResults] = useState<Record<string, EvaluationResult | null>>({})
   const [isEvaluatingKings, setIsEvaluatingKings] = useState<boolean>(false)
+  const [currentTurn, setCurrentTurn] = useState<'w' | 'b'>('w');
   const [orientation, setOrientation] = useState<'white' | 'black'>('white')
 
   const {
@@ -64,38 +64,52 @@ function App() {
 
   useEffect(() => {
     if (engineReady) {
-      console.log("App: Engine is ready.");
-      // No need to send commands here anymore
+      // console.log("App: Engine is ready."); // REMOVED
     } else {
-      console.log("App: Engine is not ready yet.");
+      // console.log("App: Engine is not ready yet."); // REMOVED
     }
-  }, [engineReady]); // Just log readiness state change
+  }, [engineReady]);
 
   const handlePositionChange = (fen: string) => {
     if (fen !== currentFen) {
-      console.log("[App] Position changed, clearing evaluations.");
+      // console.log("[App] Position changed, clearing evaluations."); // REMOVED
       cancelEvaluationRef.current = true;
       setIsEvaluatingKings(false);
-      setKingEvaluationResults({}) // Clear detailed results
+      setKingEvaluationResults({}) 
       setCurrentFen(fen)
-      const turn = fen.split(' ')[1];
+      const turn = fen.split(' ')[1] as 'w' | 'b' || 'w';
+      setCurrentTurn(turn);
       setOrientation(turn === 'w' ? 'white' : 'black');
     } else {
+      const turn = fen.split(' ')[1] as 'w' | 'b' || 'w';
+      setCurrentTurn(turn);
       setCurrentFen(fen);
     }
   }
 
+  const handleTurnChange = (newTurn: 'w' | 'b') => {
+    // console.log("[App] handleTurnChange called with:", newTurn); // REMOVED
+    if (newTurn !== currentTurn) {
+      const parts = currentFen.split(' ');
+      if (parts.length >= 2) {
+          parts[1] = newTurn;
+          const newFen = parts.join(' ');
+          // console.log("[App] Updating FEN due to turn change:", newFen); // REMOVED
+          setCurrentFen(newFen);
+          setCurrentTurn(newTurn);
+      } else {
+          console.error("[App] Cannot change turn, invalid FEN format:", currentFen);
+      }
+    }
+  };
+
   const handleEvaluateKingPositions = async () => {
     cancelEvaluationRef.current = false;
     setIsEvaluatingKings(true);
-    // --- Do NOT clear results here - let handlePositionChange do it --- 
-    // setKingEvaluationResults({}); // REMOVED
-
-    const evaluationForThisFen: Record<string, EvaluationResult | null> = {}; // Collect results locally
+    const evaluationForThisFen: Record<string, EvaluationResult | null> = {}; 
 
     try {
-      console.log("Starting king evaluation for FEN:", currentFen);
-
+      // console.log("Starting king evaluation for FEN:", currentFen); // REMOVED
       const game = new Chess(); // Use chess.js for parsing and setup
       game.clear();
       const piecesToPlace: { square: Square; piece: { type: PieceSymbol; color: 'w' | 'b' } }[] = [];
@@ -137,9 +151,8 @@ function App() {
 
       const allSquares = ([] as Square[]).concat(...Array(8).fill(0).map((_, r) => Array(8).fill(0).map((_, f) => `${String.fromCharCode(97 + f)}${8 - r}` as Square)));
 
-      console.log(`Evaluating possible squares for the ${missingKingColor === 'w' ? 'White' : 'Black'} king...`);
+      // console.log(`Evaluating possible squares for the ${missingKingColor === 'w' ? 'White' : 'Black'} king...`); // REMOVED
 
-      // --- Simplified Evaluation loop --- 
       for (const square of allSquares) {
           // Stop if clear board was clicked
           if (cancelEvaluationRef.current) break;
@@ -158,38 +171,48 @@ function App() {
           const tempPieces = [...piecesToPlace, { square, piece: { type: 'k' as PieceSymbol, color: missingKingColor } }];
           const tempFen = createFenFromPieces(tempPieces, turn); // Use helper to ensure valid FEN
 
-          console.log(`Evaluating square ${square} (FEN: ${tempFen})...`);
-
-          // --- Core change: Use the hook's promise-based evaluation --- 
           try {
-              const evaluation = await evaluateFen(tempFen, 1000); // Wait for the hook to finish
-              if (cancelEvaluationRef.current) { break; }
-              console.log(`  Result for ${square}:`, evaluation);
-              // Update state incrementally with the detailed result
-              setKingEvaluationResults(prev => ({ ...prev, [square]: evaluation })); 
-              evaluationForThisFen[square] = evaluation; // Also collect locally (optional, but good practice)
+              const evaluation = await evaluateFen(tempFen, 1000);
+              if (cancelEvaluationRef.current) break;
+
+              // --- ADJUST PERSPECTIVE: Convert score/mate if it was Black's turn in tempFen ---
+              let adjustedEvaluation = evaluation; // Start with the raw evaluation
+              const turnOfEvaluatedFen = tempFen.split(' ')[1]; // Get turn from the FEN we just evaluated
+              
+              if (turnOfEvaluatedFen === 'b' && evaluation) {
+                  // If Black moved and we got a result, negate score/mate
+                  adjustedEvaluation = {
+                      ...evaluation,
+                      score: evaluation.score !== undefined ? -evaluation.score : undefined,
+                      mate: evaluation.mate !== undefined ? -evaluation.mate : undefined,
+                  };
+                  console.log(`[App Eval Loop] Original eval (Black's turn):`, evaluation, `Adjusted eval (White's perspective):`, adjustedEvaluation);
+              } else {
+                 // console.log(`[App Eval Loop] Result for ${square} (White's turn):`, evaluation); // Keep original log commented
+              }
+              
+              // --- Store the perspective-adjusted evaluation --- 
+              setKingEvaluationResults(prev => ({ ...prev, [square]: adjustedEvaluation })); 
+              evaluationForThisFen[square] = adjustedEvaluation; // Also update local collection
+
           } catch (evalError) {
               console.error(`  Error evaluating FEN ${tempFen} for square ${square}:`, evalError);
-              // Store null or an error indicator in the state
-              setKingEvaluationResults(prev => ({ ...prev, [square]: null })); // Store null on error
+              setKingEvaluationResults(prev => ({ ...prev, [square]: null }));
               evaluationForThisFen[square] = null;
           }
-          // REMOVED: Manual wait loops, setThinking, reading appCurrentEvalRef
+      }
+      // console.log("Finished all king evaluations."); // Keep removed
 
-      } // --- End evaluation loop ---
-
-      console.log("Finished all king evaluations.");
-      // Final state update is handled incrementally within the loop
-
-    } catch (error) {
+    } catch (error) { // Use generic error for outer catch
       console.error("An unexpected error occurred during king evaluation:", error);
     } finally {
-      setIsEvaluatingKings(false); // Ensure this always runs
-      // Clear cancellation flag after evaluation ended
+      // --- RESTORED: finally block --- 
+      setIsEvaluatingKings(false); 
       cancelEvaluationRef.current = false;
     }
   };
 
+  // --- RESTORED: return statement with Router, Routes, ChessBoard etc. --- 
   return (
     <Router basename={import.meta.env.BASE_URL}>
       <div className="app">
@@ -207,9 +230,12 @@ function App() {
               <ChessBoard
                 onPositionChange={handlePositionChange}
                 kingDetailedEvaluations={kingEvaluationResults}
-                getEvaluationEmoji={getEvaluationEmoji}
+                getEvaluationEmoji={getEvaluationEmoji} 
                 isEvaluatingKings={isEvaluatingKings}
                 onEvaluateKingPositions={handleEvaluateKingPositions}
+                currentTurn={currentTurn}
+                onTurnChange={handleTurnChange}
+                evaluatedFen={currentFen}
               />
               <div className="fen-display" style={{marginTop: '10px'}}>
                 <h3>Current Position (FEN):</h3>
@@ -223,4 +249,4 @@ function App() {
   )
 }
 
-export default App
+export default App;

@@ -26,7 +26,7 @@ export function useStockfish() {
        // console.log("[Internal] Sending command:", command);
        workerRef.current.postMessage(command);
     } else if (workerRef.current && !isReady && (command === 'uci' || command === 'isready')) { // Allow uci and isready during init
-        console.log(`[Internal] Sending init command (${command})...`);
+        // console.log(`[Internal] Sending init command (${command})...`);
         workerRef.current.postMessage(command);
     } else {
        console.error(`useStockfish internal: Worker not ready(ready=${isReady})/initialized. Cannot send command:`, command);
@@ -35,12 +35,10 @@ export function useStockfish() {
 
   // Initialize worker
   useEffect(() => {
-    console.log("Initializing worker...");
-    // Log the base URL being used
-    console.log("BASE_URL for worker:", import.meta.env.BASE_URL);
-    // Construct the path relative to the base URL
+    // console.log("Initializing worker...");
+    // console.log("BASE_URL for worker:", import.meta.env.BASE_URL);
     const workerPath = `${import.meta.env.BASE_URL}stockfish/stockfish-nnue-16-single.js`;
-    console.log("Constructed worker path:", workerPath);
+    // console.log("Constructed worker path:", workerPath);
     const worker = new Worker(workerPath, { type: 'module' }); // Ensure type: module if needed
     workerRef.current = worker;
     isEngineBusy.current = false;
@@ -80,7 +78,7 @@ export function useStockfish() {
           }
 
           if (currentEvalPromiseResolve.current) {
-             console.log("useStockfish: Bestmove received, resolving promise with:", currentEvalRef.current);
+             // console.log("useStockfish: Bestmove received, resolving promise with:", currentEvalRef.current);
              currentEvalPromiseResolve.current(currentEvalRef.current);
           } else {
               console.warn("useStockfish: Received bestmove but no promise was pending.");
@@ -93,15 +91,13 @@ export function useStockfish() {
         }
         // Handle UCI confirmation
         else if (message === 'uciok') {
-          console.log("useStockfish: UCI OK received. Sending isready.");
-          // Optional: Set UCI options here if needed
-          // sendCommand('setoption name Hash value 32');
+          // console.log("useStockfish: UCI OK received. Sending isready.");
            sendCommand('isready'); // Send isready after uciok
          }
          else if (message === 'readyok') {
-          console.log("useStockfish: Engine readyok received.");
+          // console.log("useStockfish: Engine readyok received.");
            if (!isReady) {
-                console.log("Setting engine to ready state.");
+                // console.log("Setting engine to ready state.");
                 setIsReady(true); // Set ready *only* after readyok
            }
            isEngineBusy.current = false; // Ensure not busy if we were waiting for readyok
@@ -128,7 +124,7 @@ export function useStockfish() {
      sendCommand('uci'); // Send UCI right away
 
      return () => {
-       console.log("useStockfish: Terminating worker.");
+       // console.log("useStockfish: Terminating worker.");
        worker.terminate();
        if(timeoutRef.current) clearTimeout(timeoutRef.current);
        workerRef.current = null;
@@ -143,26 +139,26 @@ export function useStockfish() {
   const evaluateFen = useCallback(async (fen: string, moveTime: number): Promise<EvaluationResult | null> => {
       if (!isReady) {
           // Wait briefly for readiness if not ready yet
-          console.log("Evaluate called but engine not ready, waiting briefly...");
+          // console.log("Evaluate called but engine not ready, waiting briefly...");
           let waitLoops = 0;
           while(!isReady) {
               if(waitLoops++ > 50) throw new Error("Engine did not become ready in time."); // ~5s timeout
               await wait(100);
           }
-          console.log("Engine now ready, proceeding with evaluation.");
+          // console.log("Engine now ready, proceeding with evaluation.");
       }
       if (isEngineBusy.current) {
-          console.warn("Engine is busy, evaluation request queued/delayed (simple wait)");
+          // console.warn("Engine is busy, evaluation request queued/delayed (simple wait)");
           let waitLoops = 0;
            while (isEngineBusy.current) {
                if(waitLoops++ > 200) throw new Error("Timeout waiting for engine to become free.");
                await wait(100);
            }
-           console.log("Engine became free, proceeding with evaluation.");
+           // console.log("Engine became free, proceeding with evaluation.");
       }
 
       return new Promise<EvaluationResult | null>((resolve, reject) => {
-          console.log(`Starting evaluation promise for FEN: ${fen} (movetime ${moveTime})`);
+          // console.log(`Starting evaluation promise for FEN: ${fen} (movetime ${moveTime})`);
           isEngineBusy.current = true;
           currentEvalRef.current = null;
           currentEvalPromiseResolve.current = resolve;

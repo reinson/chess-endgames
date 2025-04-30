@@ -12,6 +12,10 @@ interface ChessBoardProps {
   getEvaluationEmoji: (evaluation: EvaluationResult | null | undefined) => string; // Accept emoji helper
   isEvaluatingKings: boolean;
   onEvaluateKingPositions: () => void;
+  // --- ADDED: Props for turn ---
+  currentTurn: 'w' | 'b';
+  onTurnChange: (turn: 'w' | 'b') => void;
+  evaluatedFen: string; // <<< ADDED
 }
 
 // --- History Storage Type Change --- 
@@ -43,17 +47,20 @@ export function ChessBoard({
   kingDetailedEvaluations,
   getEvaluationEmoji,
   isEvaluatingKings,
-  onEvaluateKingPositions
+  onEvaluateKingPositions,
+  // --- ADDED: Destructure turn props ---
+  currentTurn,
+  onTurnChange,
+  evaluatedFen // <<< Destructure
 }: ChessBoardProps) {
-  // Logging props
-  console.log('[ChessBoard Render] Received props:', { kingDetailedEvaluations, isEvaluatingKings });
+  console.log('[ChessBoard Render] Props received:', { kingDetailedEvaluations, currentTurn, evaluatedFen });
 
   // --- History State Change: Load/Save the FenHistoryStorage object --- 
   const [historyStorage, setHistoryStorage] = useState<FenHistoryStorage>(() => {
     try {
-      const stored = window.localStorage.getItem('fenEvaluationStorage'); // Use a new key
-      console.log('[ChessBoard Init] Loaded from localStorage (fenEvaluationStorage):', stored ? JSON.parse(stored) : '<empty>');
-      return stored ? JSON.parse(stored) : {}; // Default to empty object
+      const stored = window.localStorage.getItem('fenEvaluationStorage');
+      // console.log('[ChessBoard Init] Loaded from localStorage (fenEvaluationStorage):', stored ? JSON.parse(stored) : '<empty>'); // REMOVED
+      return stored ? JSON.parse(stored) : {};
     } catch {
       console.error('[ChessBoard Init] Failed to parse fenEvaluationStorage');
       return {};
@@ -77,7 +84,7 @@ export function ChessBoard({
     const g = new Chess();
     g.clear();
     const fen = g.fen();
-    console.log('[CB Init] Pos:', fen);
+    // console.log('[CB Init] Pos:', fen); // REMOVED
     return fen;
   });
   const [selectedPiece, setSelectedPiece] = useState<string | null>(null);
@@ -86,117 +93,104 @@ export function ChessBoard({
   const SQUARE_SIZE = BOARD_WIDTH / 8;
 
   const handlePositionChange = useCallback((fen: string) => {
-    console.log('[CB PosChange] FEN:', fen);
+    // console.log('[CB PosChange] FEN:', fen); // REMOVED
     setPosition(fen);
-    if (onPositionChange) {
-        onPositionChange(fen);
-    }
+    onPositionChange?.(fen);
   }, [onPositionChange]);
 
   // --- Effect Change: Save to the new storage structure --- 
   useEffect(() => {
-    console.log('[ChessBoard Effect] Triggered. Dependencies:', { kingDetailedEvaluations, position });
+    try {
+      const stringifiedData = JSON.stringify(historyStorage);
+      // console.log('[ChessBoard Effect - Persist History] Attempting localStorage.setItem (fenEvaluationStorage) with:', stringifiedData); // REMOVED
+      window.localStorage.setItem('fenEvaluationStorage', stringifiedData);
+      // console.log('[ChessBoard Effect - Persist History] Successfully wrote history to localStorage.'); // REMOVED
+    } catch (error) {
+      console.error('[ChessBoard Effect - Persist History] Failed to write history to localStorage:', error);
+    }
+  }, [historyStorage]);
 
-    // Guard clause: Use kingDetailedEvaluations prop
-    if (!position || !kingDetailedEvaluations || Object.keys(kingDetailedEvaluations).length === 0) {
-      console.log('[ChessBoard Effect] Condition not met (no position or empty detailed results), skipping write.');
-      // If results ARE present, but position is somehow falsy, make activeEvaluation match results
-      if (kingDetailedEvaluations && Object.keys(kingDetailedEvaluations).length > 0) {
-          console.log('[ChessBoard Effect] Setting active evaluation from props even though position might be unset.');
-          setActiveEvaluation(kingDetailedEvaluations);
+  // --- useEffect for handling NEW evaluations --- 
+  useEffect(() => {
+    // console.log('[ChessBoard Effect - New Evals] Triggered. Data:', kingDetailedEvaluations, 'Evaluated FEN:', evaluatedFen);
+
+    // --- Use evaluatedFen in guard clause --- 
+    if (!evaluatedFen || !kingDetailedEvaluations || Object.keys(kingDetailedEvaluations).length === 0) {
+      // console.log('[ChessBoard Effect - New Evals] Condition not met (no evaluated FEN or empty results), skipping history update.');
+       if (kingDetailedEvaluations && Object.keys(kingDetailedEvaluations).length > 0) {
+         setActiveEvaluation(kingDetailedEvaluations);
+      } else if (!kingDetailedEvaluations || Object.keys(kingDetailedEvaluations).length === 0) {
+         setActiveEvaluation({});
       }
       return;
     }
+    // console.log('[ChessBoard Effect - New Evals] Conditions met. Updating active/history.');
+    setActiveEvaluation(kingDetailedEvaluations);
 
-    console.log('[ChessBoard Effect] Conditions met. Updating active evaluation and history storage.');
-    // Set the active evaluation for display
-    setActiveEvaluation(kingDetailedEvaluations); 
-
-    // Update the persistent history storage object
     setHistoryStorage(prevStorage => {
-      const currentFen = position; // Capture position
-      console.log('[ChessBoard Effect - setHistoryStorage] Callback running. Current FEN:', currentFen);
-      
-      // Create the new storage object
-      const newStorage: FenHistoryStorage = {
-        ...prevStorage,
-        [currentFen]: kingDetailedEvaluations // Add/Update the entry for the current FEN
-      };
-
-      try {
-        const stringifiedData = JSON.stringify(newStorage);
-        console.log('[ChessBoard Effect - setHistoryStorage] Attempting localStorage.setItem (fenEvaluationStorage) with:', stringifiedData);
-        window.localStorage.setItem('fenEvaluationStorage', stringifiedData); // Use new key
-        console.log('[ChessBoard Effect - setHistoryStorage] Successfully wrote to localStorage.');
-      } catch (error) {
-        console.error('[ChessBoard Effect - setHistoryStorage] Failed to write to localStorage:', error);
+      // --- Use evaluatedFen as the key --- 
+      const fenKey = evaluatedFen; 
+      if (prevStorage[fenKey] && JSON.stringify(prevStorage[fenKey]) === JSON.stringify(kingDetailedEvaluations)) {
+          return prevStorage; 
       }
-      return newStorage; // Return the updated storage object
+      // console.log('[ChessBoard Effect - New Evals] Updating historyStorage state for FEN:', fenKey);
+      const updatedStorage: FenHistoryStorage = {
+        ...prevStorage,
+        [fenKey]: kingDetailedEvaluations // Use evaluatedFen as key
+      };
+      return updatedStorage;
     });
-  }, [kingDetailedEvaluations, position]); // Depends on detailed results and position
+  // --- Add evaluatedFen to dependency array --- 
+  }, [kingDetailedEvaluations, evaluatedFen]); 
 
   // --- useEffect for applying pending evaluation after animation delay ---
   useEffect(() => {
-    // Clear any existing timeout when position changes
     if (evaluationTimeoutRef.current) {
       clearTimeout(evaluationTimeoutRef.current);
       evaluationTimeoutRef.current = null;
     }
-
     if (pendingEvaluation) {
-      console.log('[ChessBoard Effect - Apply Pending Eval] Position changed, pending eval found. Setting timeout.');
+      // console.log('[ChessBoard Effect - Apply Pending Eval] Position changed, pending eval found. Setting timeout.'); // REMOVED
       evaluationTimeoutRef.current = setTimeout(() => {
-        console.log('[ChessBoard Effect - Apply Pending Eval] Timeout finished. Applying pending evaluation.');
+        // console.log('[ChessBoard Effect - Apply Pending Eval] Timeout finished. Applying pending evaluation.'); // REMOVED
         setActiveEvaluation(pendingEvaluation);
-        setPendingEvaluation(null); // Clear the pending state
+        setPendingEvaluation(null); 
         evaluationTimeoutRef.current = null;
       }, HISTORY_LOAD_ANIMATION_DELAY_MS);
     }
-    
-    // Cleanup function to clear timeout if component unmounts or position changes again
     return () => {
         if (evaluationTimeoutRef.current) {
             clearTimeout(evaluationTimeoutRef.current);
             evaluationTimeoutRef.current = null;
         }
     };
-  }, [position, pendingEvaluation]); // Depend on position and pendingEvaluation
+  }, [position, pendingEvaluation]);
 
   // --- ADDED: Delete History Item Handler ---
   const handleDeleteHistoryItem = useCallback((fenToDelete: string, event: React.MouseEvent) => {
-    event.stopPropagation(); // Prevent handleHistoryClick from firing
-    console.log('[ChessBoard Callback] handleDeleteHistoryItem FEN:', fenToDelete);
+    event.stopPropagation();
+    // console.log('[ChessBoard Callback] handleDeleteHistoryItem FEN:', fenToDelete); // REMOVED
     setHistoryStorage(prevStorage => {
       const newStorage = { ...prevStorage };
-      delete newStorage[fenToDelete]; // Remove the key
-      console.log('[ChessBoard Callback] Updated historyStorage after delete:', newStorage);
-      // The useEffect [historyStorage] will persist this change
+      delete newStorage[fenToDelete];
+      // console.log('[ChessBoard Callback] Updated historyStorage after delete:', newStorage); // REMOVED
       return newStorage;
     });
-  }, []); // No dependencies needed as it only uses setHistoryStorage
+  }, []);
 
   // --- Modified handleHistoryClick ---
   const handleHistoryClick = useCallback(
     (fen: string) => {
        const evalMap = historyStorage[fen];
-       console.log('[ChessBoard Callback] handleHistoryClick:', { fen, evalMap });
-       
-       // 1. Clear current emojis immediately
+       // console.log('[ChessBoard Callback] handleHistoryClick:', { fen, evalMap }); // REMOVED
        setActiveEvaluation({}); 
-       // 2. Clear any pending evaluation from a previous rapid click
        setPendingEvaluation(null);
        if (evaluationTimeoutRef.current) {
            clearTimeout(evaluationTimeoutRef.current);
            evaluationTimeoutRef.current = null;
        }
-
-       // 3. Store the evaluation to be applied after delay
-       setPendingEvaluation(evalMap || {}); // Use empty if not found
-       
-       // 4. Trigger board position change (starts animation)
+       setPendingEvaluation(evalMap || {});
        setPosition(fen);
-       
-       // 5. Manually update internal game state (as before)
        const newGame = new Chess();
        newGame.clear();
        const fenParts = fen.split(' ');
@@ -216,26 +210,22 @@ export function ChessBoard({
                 }
             }
            setGame(newGame); 
-           console.log("[CB Callback] Manually updated game state from FEN.");
+           // console.log("[CB Callback] Manually updated game state from FEN."); // REMOVED
        } catch (manualLoadError) {
             console.error("Error manually placing pieces:", manualLoadError, "FEN:", fen);
            const errorGame = new Chess(); errorGame.clear(); setGame(errorGame);
        }
-
-       // 6. Inform parent
        onPositionChange?.(fen);
-
     },
-    [onPositionChange, historyStorage] // Keep dependencies
+    [onPositionChange, historyStorage]
   );
 
   // --- Other Callbacks (onSquareClick, etc.) --- 
   // These generally remain the same, ensure handlePositionChange is called correctly
   const onSquareClick = useCallback((square: Square) => {
-      console.log('[CB SquareClick]', square, 'Sel:', selectedPiece);
-      // --- Clear emojis on any click that modifies the board --- 
+      // console.log('[CB SquareClick]', square, 'Sel:', selectedPiece); // REMOVED
       setActiveEvaluation({}); 
-      setPendingEvaluation(null); // Also clear pending if any
+      setPendingEvaluation(null);
       if (evaluationTimeoutRef.current) { clearTimeout(evaluationTimeoutRef.current); evaluationTimeoutRef.current = null; }
 
       if (!selectedPiece) {
@@ -268,10 +258,9 @@ export function ChessBoard({
   }, [game, selectedPiece, handlePositionChange]);
 
   const onSquareRightClick = useCallback((square: Square) => {
-      console.log('[CB RightClick]', square);
-      // --- Clear emojis on right-click remove --- 
+      // console.log('[CB RightClick]', square); // REMOVED
       setActiveEvaluation({});
-      setPendingEvaluation(null); // Also clear pending if any
+      setPendingEvaluation(null);
       if (evaluationTimeoutRef.current) { clearTimeout(evaluationTimeoutRef.current); evaluationTimeoutRef.current = null; }
 
       try {
@@ -282,10 +271,9 @@ export function ChessBoard({
   }, [game, handlePositionChange]);
 
   const onPieceDrop = useCallback((sourceSquare: Square, targetSquare: Square) => {
-      console.log('[CB Drop]', sourceSquare, '->', targetSquare);
-      // --- Clear emojis on drop --- 
+      // console.log('[CB Drop]', sourceSquare, '->', targetSquare); // REMOVED
       setActiveEvaluation({});
-      setPendingEvaluation(null); // Also clear pending if any
+      setPendingEvaluation(null);
       if (evaluationTimeoutRef.current) { clearTimeout(evaluationTimeoutRef.current); evaluationTimeoutRef.current = null; }
 
       try {
@@ -298,12 +286,12 @@ export function ChessBoard({
   }, [game, handlePositionChange]);
 
   const clearBoard = useCallback(() => {
-      console.log('[CB Clear]');
+      // console.log('[CB Clear]'); // REMOVED
       const newGame = new Chess(); newGame.clear(); setGame(newGame);
       handlePositionChange(newGame.fen()); setActiveEvaluation({});
-  }, [handlePositionChange]); // Added dependency
+  }, [handlePositionChange]);
 
-
+  console.log('[ChessBoard Render] State before return:', { position, activeEvaluation, pendingEvaluation });
   // --- Render --- 
   return (
     <div className="chess-board-container">
@@ -343,6 +331,24 @@ export function ChessBoard({
         {/* Piece Buttons & Controls */}
         <div className="piece-buttons">
           {PIECES.map(({ symbol, type }) => ( <div key={`button-${type}`} className={`piece-button ${selectedPiece === type ? 'selected' : ''}`} onClick={() => setSelectedPiece(type)} > {symbol} </div> ))}
+          {/* --- ADDED: Turn Selector --- */}
+          <div className="turn-selector-container">
+            <label className="turn-selector-label">Next to move:</label>
+            <div className="turn-selector">
+              <div 
+                className={`turn-option ${currentTurn === 'w' ? 'selected' : ''}`}
+                onClick={() => onTurnChange('w')}
+              >
+                White {/* Shortened text */}
+              </div>
+              <div 
+                className={`turn-option ${currentTurn === 'b' ? 'selected' : ''}`}
+                onClick={() => onTurnChange('b')}
+              >
+                Black {/* Shortened text */}
+              </div>
+            </div>
+          </div>
           <button onClick={clearBoard} style={{ marginTop: '10px' }} > Clear Board </button>
           <button className="evaluate-button" onClick={onEvaluateKingPositions} disabled={isEvaluatingKings} > {isEvaluatingKings ? 'Evaluating...' : 'Evaluate'} </button>
         </div>

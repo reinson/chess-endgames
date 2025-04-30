@@ -60,6 +60,62 @@
   box-shadow: none;
 }
 
+/* --- Styles for Turn Selector Container & Label --- */
+.turn-selector-container {
+  grid-column: 1 / -1; /* Container spans columns */
+  display: flex;
+  flex-direction: column; /* Stack label above selector */
+  align-items: center; /* Center the selector horizontally */
+  margin: 10px 0; 
+}
+
+.turn-selector-label {
+  font-size: 12px;
+  color: #6c757d; /* Muted text color */
+  margin-bottom: 4px;
+  display: block; /* Ensure it takes its own line */
+}
+
+/* --- Modified Styles for Turn Selector --- */
+.turn-selector {
+  /* Removed: grid-column */
+  display: flex;
+  /* Removed: justify-content: space-between; */
+  /* Removed: margin */
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+  overflow: hidden; 
+  width: 150px; /* --- Set a fixed narrower width --- */
+}
+
+.turn-option {
+  /* ... existing flex-grow, padding, text-align etc. ... */
+  flex-grow: 1;
+  padding: 6px 8px; /* Slightly reduced padding */
+  text-align: center;
+  cursor: pointer;
+  font-size: 13px; /* Slightly smaller font */
+  background-color: #ffffff;
+  color: #495057;
+  transition: background-color 0.2s ease, color 0.2s ease;
+  user-select: none;
+}
+
+.turn-option:first-child {
+  border-right: 1px solid #dee2e6; 
+}
+
+.turn-option:hover {
+  background-color: #f8f9fa; 
+}
+
+.turn-option.selected {
+  background-color: #4c6ef5; 
+  color: white;
+  font-weight: 500;
+}
+/* --- End Turn Selector Styles --- */
+
 /* Styles for Evaluate King Positions button */
 .evaluate-button {
   padding: 12px 24px;         /* larger clickable area */
