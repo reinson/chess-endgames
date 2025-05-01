@@ -223,20 +223,24 @@ export function ChessBoard({
   // --- Other Callbacks (onSquareClick, etc.) --- 
   // These generally remain the same, ensure handlePositionChange is called correctly
   const onSquareClick = useCallback((square: Square) => {
-      // console.log('[CB SquareClick]', square, 'Sel:', selectedPiece); // REMOVED
       setActiveEvaluation({}); 
       setPendingEvaluation(null);
       if (evaluationTimeoutRef.current) { clearTimeout(evaluationTimeoutRef.current); evaluationTimeoutRef.current = null; }
 
       if (!selectedPiece) {
+          // Pick up a piece from the board
           const piece = game.get(square);
           if (piece) {
               setSelectedPiece(piece.color === 'w' ? piece.type.toUpperCase() : piece.type.toLowerCase());
               game.remove(square);
-              handlePositionChange(game.fen());
+              // --- Reconstruct FEN to preserve turn ---
+              const boardFen = game.fen().split(' ')[0];
+              const reconstructedFen = `${boardFen} ${currentTurn} - - 0 1`;
+              handlePositionChange(reconstructedFen);
           }
           return;
       }
+      // Place the selected piece
       const existingPiece = game.get(square);
       if (existingPiece) {
           console.warn(`Square ${square} occupied.`); 
@@ -246,7 +250,10 @@ export function ChessBoard({
           const pieceType = selectedPiece;
           const putResult = game.put({ type: pieceType.toLowerCase() as PieceSymbol, color: pieceType === pieceType.toUpperCase() ? 'w' : 'b' }, square);
           if (putResult) { 
-              handlePositionChange(game.fen()); 
+              // --- Reconstruct FEN to preserve turn ---
+              const boardFen = game.fen().split(' ')[0];
+              const reconstructedFen = `${boardFen} ${currentTurn} - - 0 1`;
+              handlePositionChange(reconstructedFen); 
           } else { 
               console.error("Put fail"); 
               setSelectedPiece(null); 
@@ -255,41 +262,61 @@ export function ChessBoard({
           console.error('Put error', error); 
           setSelectedPiece(null); 
       }
-  }, [game, selectedPiece, handlePositionChange]);
+    // --- Add currentTurn to dependencies --- 
+    }, [game, selectedPiece, handlePositionChange, currentTurn]);
 
-  const onSquareRightClick = useCallback((square: Square) => {
-      // console.log('[CB RightClick]', square); // REMOVED
+   const onSquareRightClick = useCallback((square: Square) => {
       setActiveEvaluation({});
       setPendingEvaluation(null);
       if (evaluationTimeoutRef.current) { clearTimeout(evaluationTimeoutRef.current); evaluationTimeoutRef.current = null; }
-
       try {
           const removeResult = game.remove(square);
-          if (removeResult) { handlePositionChange(game.fen()); }
-          else { console.warn("Remove empty"); }
+          if (removeResult) { 
+              // --- Reconstruct FEN to preserve turn ---
+              const boardFen = game.fen().split(' ')[0];
+              const reconstructedFen = `${boardFen} ${currentTurn} - - 0 1`;
+              handlePositionChange(reconstructedFen); 
+          } else { 
+              console.warn("Remove empty"); 
+          }
       } catch (error) { console.error('Remove error', error); }
-  }, [game, handlePositionChange]);
+    // --- Add currentTurn to dependencies --- 
+    }, [game, handlePositionChange, currentTurn]);
 
-  const onPieceDrop = useCallback((sourceSquare: Square, targetSquare: Square) => {
-      // console.log('[CB Drop]', sourceSquare, '->', targetSquare); // REMOVED
+   const onPieceDrop = useCallback((sourceSquare: Square, targetSquare: Square) => {
       setActiveEvaluation({});
       setPendingEvaluation(null);
       if (evaluationTimeoutRef.current) { clearTimeout(evaluationTimeoutRef.current); evaluationTimeoutRef.current = null; }
-
       try {
           const piece = game.get(sourceSquare); if (!piece) return false;
           game.remove(sourceSquare);
           const existingPiece = game.get(targetSquare); if (existingPiece) { game.remove(targetSquare); }
           game.put(piece, targetSquare);
-          handlePositionChange(game.fen()); return true;
+          // --- Reconstruct FEN to preserve turn ---
+          const boardFen = game.fen().split(' ')[0];
+          const reconstructedFen = `${boardFen} ${currentTurn} - - 0 1`;
+          handlePositionChange(reconstructedFen); 
+          return true;
       } catch (error) { console.error('Drop error', error); return false; }
-  }, [game, handlePositionChange]);
+    // --- Add currentTurn to dependencies --- 
+    }, [game, handlePositionChange, currentTurn]);
 
-  const clearBoard = useCallback(() => {
-      // console.log('[CB Clear]'); // REMOVED
-      const newGame = new Chess(); newGame.clear(); setGame(newGame);
-      handlePositionChange(newGame.fen()); setActiveEvaluation({});
-  }, [handlePositionChange]);
+   const clearBoard = useCallback(() => {
+      setActiveEvaluation({}); // Clear evals first
+      setPendingEvaluation(null);
+      if (evaluationTimeoutRef.current) { clearTimeout(evaluationTimeoutRef.current); evaluationTimeoutRef.current = null; }
+      
+      const newGame = new Chess(); 
+      newGame.clear(); 
+      setGame(newGame); // Update game state
+      
+      // --- Reconstruct FEN to preserve turn ---
+      const boardFen = newGame.fen().split(' ')[0]; // Will be '8/8/...' 
+      const reconstructedFen = `${boardFen} ${currentTurn} - - 0 1`;
+      handlePositionChange(reconstructedFen); 
+      
+   // --- Add currentTurn to dependencies --- 
+   }, [handlePositionChange, currentTurn]);
 
   console.log('[ChessBoard Render] State before return:', { position, activeEvaluation, pendingEvaluation });
   // --- Render --- 
